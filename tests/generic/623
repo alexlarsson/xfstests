@@ -24,10 +24,22 @@ _scratch_mount
 # XFS had a regression where it failed to check shutdown status in the fault
 # path. This produced an iomap warning because writeback failure clears Uptodate
 # status on the page.
+
+# For this test to run on overlayfs we open a different file to perform
+# shutdown while keeping the writeback target file open.
+# xfs_io -c fsync post-shutdown performs fsync also on the writeback target file,
+# which is critical for trigerring the writeback failure.
+shutdown_cmd=()
+shutdown_handle="$(_scratch_shutdown_handle)"
+if [ "$shutdown_handle" != "$SCRATCH_MNT" ];then
+	shutdown_cmd+=("-c" "open $shutdown_handle")
+fi
+shutdown_cmd+=("-c" "shutdown")
+
 file=$SCRATCH_MNT/file
 $XFS_IO_PROG -fc "pwrite 0 4k" -c fsync $file | _filter_xfs_io
 ulimit -c 0
-$XFS_IO_PROG -x -c "mmap 0 4k" -c "mwrite 0 4k" -c shutdown -c fsync \
+$XFS_IO_PROG -x -c "mmap 0 4k" -c "mwrite 0 4k" "${shutdown_cmd[@]}" -c fsync \
 	-c "mwrite 0 4k" $file | _filter_xfs_io
 
 # success, all done
