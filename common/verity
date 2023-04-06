@@ -38,9 +38,16 @@ _require_scratch_verity()
 			"or mkfs options are not compatible with verity"
 	fi
 
+	local fstyp=$FSTYP
+	local scratch_mnt=$SCRATCH_MNT
+	if [ $FSTYP == "overlay" ]; then
+		fstyp="$OVL_BASE_FSTYP"
+		scratch_mnt="$OVL_BASE_SCRATCH_MNT"
+	fi
+
 	# The filesystem may be aware of fs-verity but have it disabled by
 	# CONFIG_FS_VERITY=n.  Detect support via sysfs.
-	if [ ! -e /sys/fs/$FSTYP/features/verity ]; then
+	if [ ! -e /sys/fs/$fstyp/features/verity ]; then
 		_notrun "kernel $FSTYP isn't configured with verity support"
 	fi
 
@@ -68,7 +75,7 @@ _require_scratch_verity()
 	# The filesystem may have fs-verity enabled but not actually usable by
 	# default.  E.g., ext4 only supports verity on extent-based files, so it
 	# doesn't work on ext3-style filesystems.  So, try actually using it.
-	if ! _fsv_can_enable $SCRATCH_MNT/tmpfile; then
+	if ! _fsv_can_enable $scratch_mnt/tmpfile; then
 		_notrun "$FSTYP verity isn't usable by default with these mkfs options"
 	fi
 
@@ -201,6 +208,9 @@ _scratch_mkfs_verity()
 	btrfs)
 		_scratch_mkfs
 		;;
+	overlay)
+		_scratch_mkfs # This relies on the scratch fs supporting verity
+                ;;
 	*)
 		_notrun "No verity support for $FSTYP"
 		;;
