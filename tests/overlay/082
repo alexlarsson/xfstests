@@ -1,0 +1,67 @@
+#! /bin/bash
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (C) 2023 CTERA Networks. All Rights Reserved.
+#
+# FS QA Test 082
+#
+# kernel commit 72db82115d2b ("ovl: copy up sync/noatime fileattr flags")
+# from v5.15 introduced a regression.
+#
+# This is a regression test for the fix commit ...
+#
+. ./common/preamble
+_begin_fstest auto quick
+
+# Import common functions.
+. ./common/filter
+
+# real QA test starts here
+_supported_fs overlay
+_require_scratch
+_require_chattr A
+
+# remove all files from previous runs
+_scratch_mkfs
+
+# prepare lower test dir with NOATIME flag
+lowerdir=$OVL_BASE_SCRATCH_MNT/$OVL_LOWER
+mkdir -p $lowerdir/testdir
+$CHATTR_PROG +A $lowerdir/testdir >> $seqres.full 2>&1 ||
+	_notrun "base fs $OVL_BASE_FSTYP does not support No_Atime flag"
+
+# The NOATIME is inheritted to children symlink in ext4/fs2fs
+# (and on tmpfs on recent kernels).
+# The overlayfs test will not fail unless base fs is
+# one of those filesystems.
+#
+# The problem with this inheritence is that the NOATIME flag is inheritted
+# to a symlink and the flag does take effect, but there is no way to query
+# the flag (lsattr) or change it (chattr) on a symlink, so overlayfs will
+# fail when trying to copy up NOATIME flag from lower to upper symlink.
+#
+touch $lowerdir/testdir/foo
+ln -sf foo $lowerdir/testdir/lnk
+
+$LSATTR_PROG -l $lowerdir/testdir/foo >> $seqres.full 2>&1
+$LSATTR_PROG -l $lowerdir/testdir/foo | grep -q No_Atime || \
+	_notrun "base fs $OVL_BASE_FSTYP does not inherit No_Atime flag"
+
+before=$(stat -c %x $lowerdir/testdir/lnk)
+echo "symlink atime before readlink: $before" >> $seqres.full 2>&1
+cat $lowerdir/testdir/lnk
+after=$(stat -c %x $lowerdir/testdir/lnk)
+echo "symlink atime after readlink: $after" >> $seqres.full 2>&1
+
+[ "$before" == "$after" ] || \
+	_notrun "base fs $OVL_BASE_FSTYP does not inherit No_Atime flag on symlink"
+
+# mounting overlay
+_scratch_mount
+
+# moving symlink will try to copy up lower symlink flags
+mv $SCRATCH_MNT/testdir/lnk $SCRATCH_MNT/
+
+# success, all done
+echo "Silence is golden"
+status=0
+exit
