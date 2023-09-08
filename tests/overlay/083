@@ -100,14 +100,18 @@ test_escape user
 do_test_xwhiteout()
 {
 	local prefix=$1
-	local lowerdirs=$2
+	local middir=$2
+	local lowerdir=$3
 
 	local extra_options=""
 	if [ "$prefix" == "user" ]; then
             extra_options="-o userxattr"
 	fi
 
-	_overlay_scratch_mount_dirs $lowerdirs - - $extra_options
+	setfattr -n $prefix.overlay.whiteouts -v "" $middir
+	setfattr -n $prefix.overlay.whiteout -v "" $middir/hidden
+
+	_overlay_scratch_mount_dirs $middir:$lowerdir - - $extra_options
 	ls $SCRATCH_MNT
 	stat $SCRATCH_MNT/hidden 2>&1 | _filter_scratch
 
@@ -125,10 +129,7 @@ test_xwhiteout()
 	mkdir -p $lowerdir $middir
 	touch $lowerdir/regular $lowerdir/hidden  $middir/hidden
 
-	setfattr -n $prefix.overlay.whiteouts -v "" $middir
-	setfattr -n $prefix.overlay.whiteout -v "" $middir/hidden
-
-	do_test_xwhiteout $prefix $middir:$lowerdir
+	do_test_xwhiteout $prefix $middir $lowerdir
 }
 
 test_xwhiteout trusted
@@ -147,15 +148,12 @@ test_escaped_xwhiteout()
 	fi
 
 	_scratch_mkfs
-	mkdir -p $lowerdir $lowerdir/lower $lowerdir/mid $middir/mid $nesteddir
+	mkdir -p $lowerdir/lower $lowerdir/mid $middir/mid $nesteddir
 	touch $lowerdir/lower/regular $lowerdir/lower/hidden  $lowerdir/mid/hidden
-
-	setfattr -n $prefix.overlay.overlay.whiteouts -v "" $lowerdir/mid
-	setfattr -n $prefix.overlay.overlay.whiteout -v "" $lowerdir/mid/hidden
 
 	_overlay_mount_dirs $middir:$lowerdir - - $extra_options overlayfs $nesteddir
 
-	do_test_xwhiteout $prefix $nesteddir/mid:$nesteddir/lower
+	do_test_xwhiteout $prefix $nesteddir/mid $nesteddir/lower
 
 	$UMOUNT_PROG $nesteddir
 }
