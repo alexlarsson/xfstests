@@ -57,21 +57,36 @@ $SETFATTR_PROG -n "trusted.overlayfsrz" -v "n" \
 _getfattr --absolute-names -n "trusted.overlayfsrz" \
   $SCRATCH_MNT/testf0 2>&1 | _filter_scratch
 
-# {s,g}etfattr of "trusted.overlay.xxx" should fail.
+# {s,g}etfattr of "trusted.overlay.xxx" fail on older kernels
 # The errno returned varies among kernel versions,
-#            v4.3/7   v4.8-rc1    v4.8       v4.10
-# setfattr  not perm  not perm   not perm   not supp
-# getfattr  no attr   no attr    not perm   not supp
+#            v4.3/7   v4.8-rc1    v4.8       v4.10     v6.7
+# setfattr  not perm  not perm   not perm   not supp  ok
+# getfattr  no attr   no attr    not perm   not supp  ok
 #
-# Consider "Operation not {supported,permitted}" pass.
+# Consider both "Operation not {supported,permitted}" and
+# "No such attribute" as pass for getattr to support all kernel
+# version. However, the setfattr result must match getattr.
 #
-$SETFATTR_PROG -n "trusted.overlay.fsz" -v "n" \
-  $SCRATCH_MNT/testf1 2>&1 | _filter_scratch | \
-  sed -e 's/permitted/supported/g'
 
-_getfattr --absolute-names -n "trusted.overlay.fsz" \
+getres=$(_getfattr --absolute-names -n "trusted.overlay.fsz" \
+  $SCRATCH_MNT/testf1 2>&1 | _filter_scratch)
+
+supported=n
+if [[ "$getres" =~ "No such attribute" ]]; then
+    supported=y
+else
+   [[ "$getres" =~ Operation\ not\ (supported|permitted) ]] || echo unexpected getattr result: $getres
+fi
+
+setres=$($SETFATTR_PROG -n "trusted.overlay.fsz" -v "n" \
   $SCRATCH_MNT/testf1 2>&1 | _filter_scratch | \
-  sed -e 's/permitted/supported/g'
+  sed -e 's/permitted/supported/g')
+
+if [ $supported == 'y' ]; then
+    [[ "$setres" == "" ]] || echo unexpected setattr result: $setres
+else
+    [[ "$setres" =~ "Operation not supported" ]] || echo unexpected setattr result: $setres
+fi
 
 # success, all done
 status=0
