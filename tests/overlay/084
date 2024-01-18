@@ -115,6 +115,7 @@ do_test_xwhiteout()
 
 	mkdir -p $basedir/lower $basedir/upper $basedir/work
 	touch $basedir/lower/regular $basedir/lower/hidden  $basedir/upper/hidden
+	setfattr -n $prefix.overlay.feature_whiteouts -v "y" $basedir/upper
 	setfattr -n $prefix.overlay.whiteouts -v "y" $basedir/upper
 	setfattr -n $prefix.overlay.whiteout -v "y" $basedir/upper/hidden
 
